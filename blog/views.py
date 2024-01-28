@@ -3,7 +3,14 @@ from .models import Post
 from django.http import Http404
 from django.core.paginator import Paginator,EmptyPage,PageNotAnInteger
 from django.views.generic import  ListView
+from .forms import EmailPostForm
+
 # Create your views here.
+
+def post_share(request,post_id):
+    post = get_object_or_404(Post,
+                             id =post_id,
+                             status = Post.Status.PUBLISHED)
 
 def post_list(request):
     post_list = Post.published.all()
