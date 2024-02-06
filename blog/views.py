@@ -4,10 +4,11 @@ from .models import Post, Comment
 from django.http import Http404
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import ListView
-from .forms import EmailPostForm, CommentForm
+from .forms import EmailPostForm, CommentForm,SearchField
 from django.views.decorators.http import require_POST
 from taggit.models import Tag
 from django.db.models import Count
+from django.contrib.postgres.search import SearchVector,SearchQuery, SearchRank
 
 # Create your views here.
 
@@ -17,14 +18,10 @@ def post_comment(request, post_id):
                              id=post_id,
                              status=Post.Status.PUBLISHED)
     comment = None
-    # Комментарий был отправлен
     form = CommentForm(data=request.POST)
     if form.is_valid():
-        # Создать объект класса Comment, не сохраняя его в базе данных
         comment = form.save(commit=False)
-        # Назначить пост комментарию
         comment.post = post
-        # Сохранить комментарий в базе данных
         comment.save()
     return render(request, 'blog/post/comment.html',
                   {'post': post,
@@ -104,8 +101,20 @@ def post_detail(request, year, month, day, post):
                    'form':form,
                    'similar_posts': similar_posts})
 
-# class PostListView(ListView):
-#     queryset =  Post.published.all()
-#     context_object_name = 'posts'
-#     paginate_by = 3
-#     template_name = 'blog/post/list.html'
+def post_search(request):
+    form = SearchField()
+    query = None
+    results = []
+
+    if 'query' in request.GET:
+        form = SearchField(request.GET)
+        if form.is_valid():
+            query = form.cleaned_data['query']
+            search_vector = SearchVector('title',weight='A')+SearchVector('body',weight='B')
+            search_query = SearchQuery(query)
+            results = Post.published.annotate(search=search_vector,rank=SearchRank(search_vector,search_query)).filter(rank__gte=0.3).order_by('-rank')
+    return render(request,
+                  'blog/post/search.html',
+                  {'results':results,
+                   'query':query,
+                   'form':form})
